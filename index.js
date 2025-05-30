@@ -1,60 +1,12 @@
-// ==UserScript==
-// @name         Theme Scheduler
-// @description  Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto, impostazioni solo via testo
-// @version      2.3.1
-// @author       Samix10ds
-// ==/UserScript==
+import { defaultSettings, loadSettings, setSetting, getSetting } from "./settings.js";
+import { applyThemeByTime } from "./themeLogic.js";
 
-const defaultSettings = {
-    lightThemeTime: "07:00",
-    darkThemeTime: "20:00"
-};
-
-let pluginSettings = { ...defaultSettings };
-let intervalId = null;
-
-// Caricamento e salvataggio impostazioni tramite Vencord (se disponibile), fallback su localStorage
-function loadSettings() {
-    try {
-        pluginSettings = Vencord?.PluginStorage?.load?.("ThemeScheduler") || JSON.parse(localStorage.getItem("ThemeSchedulerSettings") || "null") || { ...defaultSettings };
-    } catch {
-        pluginSettings = { ...defaultSettings };
-    }
-}
-function saveSettings() {
-    if (Vencord?.PluginStorage?.save) {
-        Vencord.PluginStorage.save("ThemeScheduler", pluginSettings);
-    }
-    localStorage.setItem("ThemeSchedulerSettings", JSON.stringify(pluginSettings));
+// Validazione input orario HH:MM
+function isValidTime(str) {
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(str);
 }
 
-function parseTime(str) {
-    const [h, m] = str.split(":").map(Number);
-    return { h, m };
-}
-
-function applyThemeByTime() {
-    const ThemeStore = window?.BdApi?.findModuleByProps?.("theme", "setTheme") || window?.Vencord?.Webpack?.findByProps?.("theme", "setTheme");
-    if (!ThemeStore || !ThemeStore.setTheme) return;
-
-    const now = new Date();
-    const { h: lightH, m: lightM } = parseTime(pluginSettings.lightThemeTime);
-    const { h: darkH, m: darkM } = parseTime(pluginSettings.darkThemeTime);
-
-    const lightMinutes = lightH * 60 + lightM;
-    const darkMinutes = darkH * 60 + darkM;
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-    let theme = "dark";
-    if (lightMinutes < darkMinutes) {
-        if (nowMinutes >= lightMinutes && nowMinutes < darkMinutes) theme = "light";
-    } else {
-        if (nowMinutes >= lightMinutes || nowMinutes < darkMinutes) theme = "light";
-    }
-    if (ThemeStore.theme !== theme) ThemeStore.setTheme(theme);
-}
-
-// Impostazioni solo testo
+// Impostazioni Vencord - SOLO TESTO
 const settings = [
     {
         type: "text",
@@ -62,11 +14,12 @@ const settings = [
         name: "Orario tema chiaro (formato HH:MM, es: 07:00)",
         note: "Orario in cui attivare il tema chiaro",
         default: defaultSettings.lightThemeTime,
-        get value() { return pluginSettings.lightThemeTime; },
+        get value() { return getSetting("lightThemeTime"); },
         set value(val) {
-            pluginSettings.lightThemeTime = val;
-            saveSettings();
-            applyThemeByTime();
+            if (isValidTime(val)) {
+                setSetting("lightThemeTime", val);
+                applyThemeByTime();
+            }
         }
     },
     {
@@ -75,20 +28,23 @@ const settings = [
         name: "Orario tema scuro (formato HH:MM, es: 20:00)",
         note: "Orario in cui attivare il tema scuro",
         default: defaultSettings.darkThemeTime,
-        get value() { return pluginSettings.darkThemeTime; },
+        get value() { return getSetting("darkThemeTime"); },
         set value(val) {
-            pluginSettings.darkThemeTime = val;
-            saveSettings();
-            applyThemeByTime();
+            if (isValidTime(val)) {
+                setSetting("darkThemeTime", val);
+                applyThemeByTime();
+            }
         }
     }
 ];
 
+let intervalId = null;
+
 export default {
     name: "Theme Scheduler",
-    description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto, impostazioni solo via testo.",
+    description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto (impostazioni solo testo).",
     authors: [{ name: "Samix10ds" }],
-    version: "2.3.1",
+    version: "3.0.0",
 
     settings,
 
