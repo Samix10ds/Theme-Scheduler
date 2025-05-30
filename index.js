@@ -1,9 +1,8 @@
 // ==UserScript==
 // @name         Theme Scheduler
-// @description  Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto
-// @version      1.4.0
+// @description  Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto, con impostazioni grafiche
+// @version      2.0.0
 // @author       Samix_10
-// @website      https://github.com/Samix10ds/Theme-Scheduler.git
 // ==/UserScript==
 
 const defaultSettings = {
@@ -11,17 +10,30 @@ const defaultSettings = {
     darkThemeTime: "20:00"
 };
 
-let settings = BdApi.loadData("ThemeScheduler", "settings") || { ...defaultSettings };
+let settings = { ...defaultSettings };
 let intervalId = null;
 
+// Utilità per salvare/caricare impostazioni (Vencord)
+function loadSettings() {
+    const data = Vencord.Plugins?.ThemeScheduler?.storage || {};
+    settings = { ...defaultSettings, ...data };
+}
+function saveSettings() {
+    if (!Vencord.Plugins.ThemeScheduler) Vencord.Plugins.ThemeScheduler = {};
+    Vencord.Plugins.ThemeScheduler.storage = { ...settings };
+}
+
+// Parsing orario tipo "07:00"
 function parseTime(str) {
+    if (!str) return { h: 0, m: 0 };
     const [h, m] = str.split(":").map(Number);
     return { h, m };
 }
 
+// Cambia automatico tema
 function applyThemeByTime() {
-    const themeSettings = BdApi.findModuleByProps("theme", "setTheme");
-    if (!themeSettings) return;
+    const ThemeStore = Vencord.Webpack.findByProps("theme", "setTheme");
+    if (!ThemeStore) return;
 
     const now = new Date();
     const { h: lightH, m: lightM } = parseTime(settings.lightThemeTime);
@@ -37,21 +49,14 @@ function applyThemeByTime() {
     } else {
         if (nowMinutes >= lightMinutes || nowMinutes < darkMinutes) theme = "light";
     }
-    if (themeSettings.theme !== theme) {
-        themeSettings.setTheme(theme);
-        console.log(`[Theme Scheduler] Tema applicato: ${theme}`);
-    }
+    if (ThemeStore.theme !== theme) ThemeStore.setTheme(theme);
 }
 
-function saveSettings() {
-    BdApi.saveData("ThemeScheduler", "settings", settings);
-}
-
-// Settings panel con time picker grafico
+// Pannello impostazioni grafico
 function getSettingsPanel() {
-    const React = BdApi.React;
+    const React = Vencord.React;
     return React.createElement("div", {
-        style: { display: "flex", flexDirection: "column", gap: 16, padding: 16, maxWidth: 350 }
+        style: { display: "flex", flexDirection: "column", gap: 16, padding: 16 }
     },
         React.createElement("label", {}, "Orario tema chiaro"),
         React.createElement("input", {
@@ -74,29 +79,27 @@ function getSettingsPanel() {
             }
         }),
         React.createElement("div", { style: { color: "#888", fontSize: 13, marginTop: 12 } },
-            "Il tema cambierà automaticamente in base agli orari impostati (usa il selettore orario sopra)."
+            "Il tema cambierà automaticamente agli orari scelti."
         )
     );
 }
 
 export default {
     name: "Theme Scheduler",
-    description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto",
-    authors: [{ name: "Samix10ds", github_username: "Samix10ds" }],
-    version: "1.4.0",
+    description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto.",
+    authors: [{ name: "Samix10ds" }],
+    version: "2.0.0",
 
     getSettingsPanel,
 
     onLoad() {
-        settings = BdApi.loadData("ThemeScheduler", "settings") || { ...defaultSettings };
+        loadSettings();
         applyThemeByTime();
     },
-
     onStart() {
         applyThemeByTime();
         intervalId = setInterval(applyThemeByTime, 60 * 1000);
     },
-
     onStop() {
         if (intervalId) clearInterval(intervalId);
     }
