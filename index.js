@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Theme Scheduler
 // @description  Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto, con impostazioni grafiche
-// @version      2.0.0
-// @author       Samix_10
+// @version      2.1.0
+// @author       Samix10ds
 // ==/UserScript==
 
 const defaultSettings = {
@@ -13,27 +13,29 @@ const defaultSettings = {
 let settings = { ...defaultSettings };
 let intervalId = null;
 
-// Utilità per salvare/caricare impostazioni (Vencord)
 function loadSettings() {
-    const data = Vencord.Plugins?.ThemeScheduler?.storage || {};
-    settings = { ...defaultSettings, ...data };
+    try {
+        const s = JSON.parse(localStorage.getItem("ThemeSchedulerSettings") || "{}");
+        settings = { ...defaultSettings, ...s };
+    } catch {
+        settings = { ...defaultSettings };
+    }
 }
 function saveSettings() {
-    if (!Vencord.Plugins.ThemeScheduler) Vencord.Plugins.ThemeScheduler = {};
-    Vencord.Plugins.ThemeScheduler.storage = { ...settings };
+    localStorage.setItem("ThemeSchedulerSettings", JSON.stringify(settings));
 }
 
-// Parsing orario tipo "07:00"
 function parseTime(str) {
-    if (!str) return { h: 0, m: 0 };
     const [h, m] = str.split(":").map(Number);
     return { h, m };
 }
 
-// Cambia automatico tema
 function applyThemeByTime() {
-    const ThemeStore = Vencord.Webpack.findByProps("theme", "setTheme");
-    if (!ThemeStore) return;
+    const ThemeStore = window?.Vencord?.Webpack?.findByProps("theme", "setTheme") 
+        || (window?.webpackChunkdiscord_app?.push([
+            [Symbol()], {}, e => { m = []; for (let i in e.c) m.push(e.c[i]); return m }
+        ]), window?.webpackChunkdiscord_app?.pop());
+    if (!ThemeStore || !ThemeStore.setTheme) return;
 
     const now = new Date();
     const { h: lightH, m: lightM } = parseTime(settings.lightThemeTime);
@@ -52,11 +54,11 @@ function applyThemeByTime() {
     if (ThemeStore.theme !== theme) ThemeStore.setTheme(theme);
 }
 
-// Pannello impostazioni grafico
-function getSettingsPanel() {
-    const React = Vencord.React;
+// IMPOSTAZIONI GRAFICHE
+function settingsPanel() {
+    const React = window.vendetta?.metro?.React || window.React;
     return React.createElement("div", {
-        style: { display: "flex", flexDirection: "column", gap: 16, padding: 16 }
+        style: { display: "flex", flexDirection: "column", gap: 16, padding: 16, maxWidth: 320 }
     },
         React.createElement("label", {}, "Orario tema chiaro"),
         React.createElement("input", {
@@ -88,9 +90,9 @@ export default {
     name: "Theme Scheduler",
     description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto.",
     authors: [{ name: "Samix10ds" }],
-    version: "2.0.0",
+    version: "2.1.0",
 
-    getSettingsPanel,
+    settings: settingsPanel,
 
     onLoad() {
         loadSettings();
