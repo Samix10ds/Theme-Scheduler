@@ -1,29 +1,28 @@
 // ==UserScript==
 // @name         Theme Scheduler
 // @description  Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto
-// @version      1.1.0
-// @author       Samix10ds
-// @website      https://github.com/Samix10ds
+// @version      1.4.0
+// @author       Samix_10
+// @website      https://github.com/Samix10ds/Theme-Scheduler.git
 // ==/UserScript==
-
-import { storage } from "@vendetta/plugin";
-import { findByProps } from "@vendetta/metro";
-import { logger } from "@vendetta";
-
-// Trova il modulo che gestisce il tema
-const ThemeStore = findByProps("theme", "setTheme");
 
 const defaultSettings = {
     lightThemeTime: "07:00",
     darkThemeTime: "20:00"
 };
 
+let settings = BdApi.loadData("ThemeScheduler", "settings") || { ...defaultSettings };
+let intervalId = null;
+
 function parseTime(str) {
     const [h, m] = str.split(":").map(Number);
     return { h, m };
 }
 
-function applyThemeByTime(settings) {
+function applyThemeByTime() {
+    const themeSettings = BdApi.findModuleByProps("theme", "setTheme");
+    if (!themeSettings) return;
+
     const now = new Date();
     const { h: lightH, m: lightM } = parseTime(settings.lightThemeTime);
     const { h: darkH, m: darkM } = parseTime(settings.darkThemeTime);
@@ -38,43 +37,67 @@ function applyThemeByTime(settings) {
     } else {
         if (nowMinutes >= lightMinutes || nowMinutes < darkMinutes) theme = "light";
     }
-    if (ThemeStore?.theme !== theme) {
-        ThemeStore?.setTheme(theme);
-        logger.log(`[Theme Scheduler] Tema applicato: ${theme}`);
+    if (themeSettings.theme !== theme) {
+        themeSettings.setTheme(theme);
+        console.log(`[Theme Scheduler] Tema applicato: ${theme}`);
     }
 }
 
-let intervalId = null;
+function saveSettings() {
+    BdApi.saveData("ThemeScheduler", "settings", settings);
+}
+
+// Settings panel con time picker grafico
+function getSettingsPanel() {
+    const React = BdApi.React;
+    return React.createElement("div", {
+        style: { display: "flex", flexDirection: "column", gap: 16, padding: 16, maxWidth: 350 }
+    },
+        React.createElement("label", {}, "Orario tema chiaro"),
+        React.createElement("input", {
+            type: "time",
+            value: settings.lightThemeTime,
+            onChange: (e) => {
+                settings.lightThemeTime = e.target.value;
+                saveSettings();
+                applyThemeByTime();
+            }
+        }),
+        React.createElement("label", {}, "Orario tema scuro"),
+        React.createElement("input", {
+            type: "time",
+            value: settings.darkThemeTime,
+            onChange: (e) => {
+                settings.darkThemeTime = e.target.value;
+                saveSettings();
+                applyThemeByTime();
+            }
+        }),
+        React.createElement("div", { style: { color: "#888", fontSize: 13, marginTop: 12 } },
+            "Il tema cambierà automaticamente in base agli orari impostati (usa il selettore orario sopra)."
+        )
+    );
+}
 
 export default {
+    name: "Theme Scheduler",
+    description: "Cambia automaticamente il tema Discord (chiaro/scuro) in base all'orario scelto",
+    authors: [{ name: "Samix10ds", github_username: "Samix10ds" }],
+    version: "1.4.0",
+
+    getSettingsPanel,
+
     onLoad() {
-        if (!storage.lightThemeTime) storage.lightThemeTime = defaultSettings.lightThemeTime;
-        if (!storage.darkThemeTime) storage.darkThemeTime = defaultSettings.darkThemeTime;
-        applyThemeByTime(storage);
+        settings = BdApi.loadData("ThemeScheduler", "settings") || { ...defaultSettings };
+        applyThemeByTime();
     },
+
     onStart() {
-        applyThemeByTime(storage);
-        intervalId = setInterval(() => applyThemeByTime(storage), 60 * 1000);
+        applyThemeByTime();
+        intervalId = setInterval(applyThemeByTime, 60 * 1000);
     },
+
     onStop() {
         if (intervalId) clearInterval(intervalId);
-    },
-    settings: [
-        {
-            type: "text",
-            id: "lightThemeTime",
-            name: "Orario tema chiaro",
-            note: "Quando attivare il tema chiaro (formato 24h, es: 07:00)",
-            default: defaultSettings.lightThemeTime,
-            onChange: (value) => { storage.lightThemeTime = value; }
-        },
-        {
-            type: "text",
-            id: "darkThemeTime",
-            name: "Orario tema scuro",
-            note: "Quando attivare il tema scuro (formato 24h, es: 20:00)",
-            default: defaultSettings.darkThemeTime,
-            onChange: (value) => { storage.darkThemeTime = value; }
-        }
-    ]
+    }
 };
